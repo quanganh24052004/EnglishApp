@@ -73,3 +73,6 @@ Icon
 # agent
 .agents
 .test
+
+#Data
+*.json
