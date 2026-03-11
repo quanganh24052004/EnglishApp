@@ -7,8 +7,7 @@ struct RootView: View {
         Group {
             switch appState.state {
             case .loading:
-                // TODO: Replace with custom LaunchView
-                ProgressView("Đang tải dữ liệu...")
+                SplashScreenView()
                     .transition(.opacity)
             case .unauthenticated:
                 // TODO: Replace with Login/Authentication Flow
