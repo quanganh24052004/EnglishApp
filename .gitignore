@@ -74,5 +74,5 @@ Icon
 .agents
 .test
 
-#Data
-*.json
+# Data
+EnglishApp/Core/Storage/survey_data.json
