@@ -1,6 +1,7 @@
 {
   "images" : [
     {
+      "filename" : "img_hi_capy.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -12,6 +13,7 @@
           "value" : "dark"
         }
       ],
+      "filename" : "img_hi_capy 1.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"

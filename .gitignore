@@ -76,3 +76,8 @@ Icon
 
 # Data
 EnglishApp/Core/Storage/survey_data.json
+
+# Authentication (Temporarily ignored for TestFlight)
+EnglishApp/Core/Network/AuthService.swift
+EnglishApp/Features/Auth/Views/LoginView.swift
+EnglishApp/Features/Auth/Views/RegisterView.swift
