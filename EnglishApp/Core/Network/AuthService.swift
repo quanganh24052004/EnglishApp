@@ -82,11 +82,6 @@ class KeychainHelper {
 struct AuthTokenResponse: Codable {
     let accessToken: String
     let tokenType: String
-    
-    enum CodingKeys: String, CodingKey {
-        case accessToken = "access_token"
-        case tokenType = "token_type"
-    }
 }
 
 
@@ -102,7 +97,7 @@ enum AuthError: Error {
 @MainActor
 class AuthService: ObservableObject {
     static let shared = AuthService()
-    private let baseURL = "http://192.168.1.58:8000/api/v1/auth"
+    private let baseURL = APIConfig.authBaseURL
     
     @Published var isAuthenticated: Bool = false
     
@@ -118,16 +113,18 @@ class AuthService: ObservableObject {
         }
     }
     
-    /// Logic Đăng Nhập gọi Backend `POST /api/v1/auth/login` (Backend dùng dạng FormData x-www-form-urlencoded theo chuẩn OAuth2)
+    /// Logic Đăng Nhập gọi Backend `POST /api/v1/auth/login`
     func login(email: String, password: String) async throws {
         guard let url = URL(string: "\(baseURL)/login") else { throw AuthError.invalidURL }
         
-        // FastAPI `OAuth2PasswordRequestForm` yêu cầu Body dạng Form-Data
+        let safeEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let safePassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+        
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
-        let bodyParameters = "username=\(email.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")&password=\(password.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
+        let bodyParameters = "username=\(safeEmail.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")&password=\(safePassword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")"
         request.httpBody = bodyParameters.data(using: .utf8)
         
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -137,26 +134,71 @@ class AuthService: ObservableObject {
         if httpResponse.statusCode == 200 {
             let decoder = JSONDecoder()
             do {
-                let tokenResponse = try decoder.decode(AuthTokenResponse.self, from: data)
+                // Phải bọc qua APIResponse vì JSON thực tế có "data" bọc ngoài
+                let responseWrapper = try decoder.decode(APIResponse<AuthTokenResponse>.self, from: data)
+                
+                guard let tokenResponse = responseWrapper.data else {
+                    throw AuthError.invalidResponse
+                }
+                
                 // Lưu JWT Token vào Keychain
                 KeychainHelper.shared.saveToken(token: tokenResponse.accessToken)
-                isAuthenticated = true
+                
+                await MainActor.run {
+                    self.isAuthenticated = true
+                }
             } catch {
+                print("Decoding AuthTokenResponse failed: \(error)")
                 throw AuthError.decodingError(error)
             }
         } else if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("Server 401/403 Error Detail: \(errorString)")
+            }
             throw AuthError.unauthorized
         } else {
             throw AuthError.invalidResponse
         }
     }
-    
+
     /// Logic Đăng Xuất
     func logout() {
         KeychainHelper.shared.deleteToken()
+        UserDefaults.standard.removeObject(forKey: "lastSyncTime_Courses")
         isAuthenticated = false
     }
     
-    // ... Hàm Register ...
+    /// Logic Đăng Ký gọi Backend `POST /api/v1/auth/register` (Backend nhận dạng JSON UserCreate)
+    func register(email: String, password: String) async throws {
+        guard let url = URL(string: "\(baseURL)/register") else { throw AuthError.invalidURL }
+        
+        let safeEmail = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let safePassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.addValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body: [String: String] = [
+            "email": safeEmail,
+            "password": safePassword
+        ]
+        
+        request.httpBody = try? JSONEncoder().encode(body)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else { throw AuthError.invalidResponse }
+        
+        // Mặc dù FastAPI trả về 200, Swift Data có thể decode hoặc lờ đi User trả về tuỳ nhu cầu
+        if httpResponse.statusCode == 200 || httpResponse.statusCode == 201 {
+            return // Đăng ký thành công
+        } else {
+            // Trường hợp 400 Bad Request (vd: Email đã tồn tại)
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("Register Server Error: \(errorString)")
+            }
+            throw AuthError.invalidResponse
+        }
+    }
 }
-
