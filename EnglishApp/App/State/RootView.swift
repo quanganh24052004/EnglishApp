@@ -10,21 +10,15 @@ struct RootView: View {
                 SplashScreenView()
                     .transition(.opacity)
             case .unauthenticated:
-                // TODO: Replace with Login/Authentication Flow
-                VStack(spacing: 20) {
-                    Text("Bạn chưa đăng nhập")
-                        .font(.headline)
-                    Button("Đăng nhập") {
-                        withAnimation {
-                            appState.transition(to: .authenticated)
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-                .transition(.opacity)
-            case .authenticated:
-                // The Main App Flow
-                HomeContentView()
+                LoginView()
+                    .transition(.opacity)
+            case .onboarding:
+                // Survey & Onboarding App Flow
+                IntroView()
+                    .transition(.opacity)
+            case .guest, .authenticated:
+                // The Main App Flow - TabBar chính
+                MainTabView()
                     .transition(.opacity)
             }
         }

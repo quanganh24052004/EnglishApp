@@ -14,9 +14,17 @@ struct EnglishAppApp: App {
     @State private var appState = AppStateController()
     @Environment(\.scenePhase) private var scenePhase
 
+    // Cấu hình ModelContainer với toàn bộ Schema mới
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Item.self,
+            User.self,
+            Account.self,
+            Course.self,
+            Lesson.self,
+            Word.self,
+            Meaning.self,
+            StudyRecord.self,
+            LessonRecord.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -31,10 +39,6 @@ struct EnglishAppApp: App {
         WindowGroup {
             RootView()
                 .environment(appState)
-                .task {
-                    // Start app lifecycle initialization
-                    await appState.initialize()
-                }
         }
         .modelContainer(sharedModelContainer)
         .onChange(of: scenePhase) { oldPhase, newPhase in
@@ -46,7 +50,7 @@ struct EnglishAppApp: App {
     private func handleScenePhaseChange(from: ScenePhase, to: ScenePhase) {
         switch to {
         case .active:
-            // App became active — validate session, refresh data
+            // App became active — validate session
             Task {
                 await appState.validateSession()
                 await appState.refreshIfNeeded()

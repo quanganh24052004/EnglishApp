@@ -3,8 +3,9 @@ import SwiftUI
 enum AppState: Equatable {
     case loading
     case unauthenticated
+    case guest
     case authenticated
-    // case onboarding(OnboardingStep)
+    case onboarding
     // case error(AppError)
 }
 
@@ -22,6 +23,10 @@ class AppStateController {
             return
         }
 
+        if newState == .guest || newState == .authenticated {
+            UserDefaults.standard.set(true, forKey: "hasCompletedOnboarding")
+        }
+
         let oldState = state
         state = newState
         logTransition(from: oldState, to: newState)
@@ -33,26 +38,27 @@ class AppStateController {
         switch (from, to) {
         // From loading
         case (.loading, .unauthenticated): return true
+        case (.loading, .guest): return true
         case (.loading, .authenticated): return true
-        // case (.loading, .error): return true
+        case (.loading, .onboarding): return true
 
         // From unauthenticated
         case (.unauthenticated, .authenticated): return true
-        // case (.unauthenticated, .onboarding): return true
-        // case (.unauthenticated, .error): return true
+        case (.unauthenticated, .guest): return true
+        case (.unauthenticated, .onboarding): return true
+
+        // From guest
+        case (.guest, .unauthenticated): return true
+        case (.guest, .authenticated): return true
 
         // From authenticated
         case (.authenticated, .unauthenticated): return true  // Logout
-        // case (.authenticated, .error): return true
-
-        // From error
-        // case (.error, .loading): return true  // Retry
-        // case (.error, .unauthenticated): return true
+        case (.authenticated, .guest): return true // Logout to guest mode
 
         // From onboarding
-        // case (.onboarding, .onboarding): return true  // Step changes
-        // case (.onboarding, .authenticated): return true
-        // case (.onboarding, .unauthenticated): return true  // Cancelled
+        case (.onboarding, .unauthenticated): return true
+        case (.onboarding, .guest): return true
+        case (.onboarding, .authenticated): return true
 
         default: return false
         }
@@ -80,9 +86,8 @@ extension AppStateController {
     func initialize() async {
         let startTime = Date()
         
-        // TODO: Validate user session from Keychain/UserDefaults here
-        // let isValidSession = await AuthService.validateSession()
-        let isValidSession = false // Mocking false for now
+        // Validate user session from Keychain
+        let isAuthenticated = KeychainHelper.shared.readToken() != nil
         
         // Ensure minimum display time for loading screen (prevent flicker)
         let elapsed = Date().timeIntervalSince(startTime)
@@ -91,7 +96,12 @@ extension AppStateController {
             try? await Task.sleep(for: .seconds(minimumDuration - elapsed))
         }
         
-        if isValidSession {
+        // 1. Check Onboarding Status
+        let hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        
+        if !hasCompletedOnboarding {
+            transition(to: .onboarding)
+        } else if isAuthenticated {
             transition(to: .authenticated)
         } else {
             transition(to: .unauthenticated)
